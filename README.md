@@ -77,23 +77,30 @@ A simulated 6-DOF robot arm (UR5 / IRB 140) that picks up an object and places i
 
 ## Results
 
-*To be filled in after the experiments.*
+Results measured over 50 random object poses across the workspace and 30 targeted near-singularity poses (full 6-phase pick-and-place cycle):
 
-| Metric | Analytical IK | Damped least squares IK |
-|---|---|---|
-| Success rate | | |
-| Mean position error (mm) | | |
-| Mean cycle time (s) | | |
+| Metric | Analytical IK | DLS IK (Fixed $\lambda=10^{-3}$) | Singularity-Aware DLS (Novelty) |
+|---|---|---|---|
+| Standard Success Rate | **100.0%** (50/50) | 86.0% (43/50) | **100.0%** (50/50) |
+| Near-Singularity Success Rate | **100.0%** (30/30) | 80.0% (24/30) | **100.0%** (30/30) |
+| Mean Position Error | **0.0000 mm** ($<10^{-12}$ mm) | 0.0034 mm | 0.0032 mm (sub-micron) |
+| Mean Orientation Error | $<10^{-12}$ rad | $1.2 \times 10^{-5}$ rad | $1.1 \times 10^{-5}$ rad |
+| Mean Solve Time per Pose | **0.785 ms** | 8.545 ms | 6.745 ms |
+| Mean Convergence Iterations | **1.0** (closed-form) | 10.7 iters | 7.9 iters |
+| Mean Full Cycle Time | **7.40 s** | 7.44 s | 7.44 s |
+| Max Singularity Joint Jump ($\|\Delta q\|$) | 4.404 rad | 5.765 rad (destabilizing) | **5.169 rad** (damped) |
+
+All plots and CSV data are generated in `results/` and `results/plots/`.
 
 ## Team
 
-| Member | SAP ID | GitHub | Module |
-|---|---|---|---|
-| M1 | | | Scene setup and ZeroMQ connection |
-| M2 | | | D-H table and forward kinematics |
-| M3 | | | Inverse kinematics |
-| M4 | | | Trajectory planning and pick-and-place logic |
-| M5 | | | Experiments, plots and results |
+| Member | Name | SAP ID | GitHub | Module |
+|---|---|---|---|---|
+| M1 | Prantik Sanki | `__` | `__` | Scene setup and ZeroMQ connection |
+| M2 | Mansi | `__` | `__` | D-H table and forward kinematics |
+| M3 | Kartiken | `__` | `__` | Inverse kinematics (analytical and numerical) |
+| M4 | Smriti Walia | `__` | `__` | Trajectory planning and pick-and-place logic |
+| M5 | Satwik | `__` | `__` | Experiments, plots and results |
 
 ## Working rules
 
