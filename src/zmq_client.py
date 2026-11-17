@@ -30,6 +30,14 @@ PART = "/Part"
 GRIP_RANGE = 0.08      # m, max tip-to-part distance for a successful grasp
 PART_START = (0.40, 0.20, 0.0425)
 
+# CoppeliaSim 4.10's UR5 differs from the textbook D-H model in two ways (fitted from 40
+# random poses, residual 0.01 mm). This module hides that: every function here takes and
+# returns joint angles and poses in the D-H convention of dh_fk.py (zero pose = textbook).
+#   q_dh  = q_sim + SIM_JOINT_OFFSETS      (sim zero pose points straight up)
+#   z_dh  = z_sim + SIM_BASE_Z             (sim base frame is 14.62 mm below the D-H base)
+SIM_JOINT_OFFSETS = np.array([-np.pi / 2, -np.pi / 2, 0.0, -np.pi / 2, 0.0, 0.0])
+SIM_BASE_Z = 0.01462
+
 _cache = {}
 
 
@@ -72,7 +80,8 @@ def _handles(sim):
 # ---------------------------------------------------------------- joints
 def get_joint_angles(sim):
     h = _handles(sim)
-    return np.array([sim.getJointPosition(j) for j in h["joints"]])
+    q_sim = np.array([sim.getJointPosition(j) for j in h["joints"]])
+    return q_sim + SIM_JOINT_OFFSETS
 
 
 def set_joint_angles(sim, q):
@@ -81,7 +90,7 @@ def set_joint_angles(sim, q):
     q = np.asarray(q, dtype=float)
     if q.shape != (6,):
         raise ValueError("q must have shape (6,)")
-    for j, v in zip(h["joints"], q):
+    for j, v in zip(h["joints"], q - SIM_JOINT_OFFSETS):
         sim.setJointPosition(j, float(v))
 
 
@@ -90,12 +99,15 @@ def get_tip_pose(sim):
     h = _handles(sim)
     m = np.eye(4)
     m[:3, :] = np.array(sim.getObjectMatrix(h["tip"], h["base"])).reshape(3, 4)
+    m[2, 3] += SIM_BASE_Z
     return m
 
 
 def get_object_position(sim, name=PART):
     h = _handles(sim)
-    return np.array(sim.getObjectPosition(sim.getObject(name), h["base"]))
+    p = np.array(sim.getObjectPosition(sim.getObject(name), h["base"]))
+    p[2] += SIM_BASE_Z
+    return p
 
 
 # ---------------------------------------------------------------- gripper
@@ -130,7 +142,8 @@ def reset_scene_objects(sim, part_xyz=PART_START):
     """Release the part and put it back at a start position (base frame)."""
     h = _handles(sim)
     open_gripper(sim)
-    sim.setObjectPosition(sim.getObject(PART), h["base"], [float(v) for v in part_xyz])
+    x, y, z = (float(v) for v in part_xyz)
+    sim.setObjectPosition(sim.getObject(PART), h["base"], [x, y, z - SIM_BASE_Z])
 
 
 # ---------------------------------------------------------------- validation

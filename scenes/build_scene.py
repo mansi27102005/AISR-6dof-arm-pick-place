@@ -51,9 +51,12 @@ def main():
     sim.setObjectAlias(robot, "UR5")
     sim.setObjectPosition(robot, -1, [0, 0, 0])
     # drop the model's own control script so joints are driven only from Python
-    scr = sim.getScript(sim.scripttype_childscript, robot)
-    if scr != -1:
-        sim.removeScript(scr)
+    try:
+        scr = sim.getScript(sim.scripttype_simulation, robot)
+        if scr != -1:
+            sim.removeScript(scr)
+    except Exception as e:
+        print("note: could not remove model script:", e)
 
     # tool-tip dummy: on the model's last dummy (connection) if present, else the last joint
     dummies = sim.getObjectsInTree(robot, sim.object_dummy_type, 0)
@@ -62,8 +65,10 @@ def main():
     tip = sim.createDummy(0.02)
     sim.setObjectAlias(tip, "GripperTip")
     sim.setObjectParent(tip, parent, False)
-    sim.setObjectPosition(tip, parent, [0, 0, 0])
-    sim.setObjectOrientation(tip, parent, [0, 0, 0])
+    # Measured offset of the parent from the D-H flange (see src/dh_fk.py): the flange is
+    # 0.0961 m further along the parent's z axis and rotated +90 deg about it.
+    sim.setObjectPosition(tip, parent, [0, 0, 0.0961])
+    sim.setObjectOrientation(tip, parent, [0, 0, 1.5707963])
 
     # conveyor, part and bin
     box(sim, [0.30, 0.30, 0.02], [0.40, 0.20, 0.01], [0.2, 0.2, 0.2], "Conveyor")
