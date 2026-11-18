@@ -73,9 +73,24 @@ def _handles(sim):
             raise RuntimeError(f"{ROBOT} has {len(joints)} joints, expected 6")
         _cache["base"] = base
         _cache["joints"] = list(joints[:6])   # depth-first order = serial-chain order
+        for j in _cache["joints"]:
+            try:
+                sim.setJointMode(j, sim.jointmode_kinematic)
+            except Exception:
+                sim.setJointMode(j, sim.jointmode_kinematic, 0)
+        # Links: static and non-respondable, so they follow the joints and don't push the part
+        for s in sim.getObjectsInTree(base, sim.object_shape_type, 0):
+            sim.setObjectInt32Param(s, sim.shapeintparam_static, 1)
+            sim.setObjectInt32Param(s, sim.shapeintparam_respondable, 0)
         _cache["tip"] = sim.getObject(TIP)
+        for name in ["/Bin", "/BinWall[0]", "/BinWall[1]", "/BinWall[2]", "/BinWall[3]", "/Conveyor"]:
+            try:
+                o = sim.getObject(name)
+                sim.setObjectInt32Param(o, sim.shapeintparam_static, 1)
+                sim.setObjectInt32Param(o, sim.shapeintparam_respondable, 1)
+            except Exception:
+                pass
     return _cache
-
 
 # ---------------------------------------------------------------- joints
 def get_joint_angles(sim):
@@ -112,13 +127,13 @@ def get_object_position(sim, name=PART):
 
 # ---------------------------------------------------------------- gripper
 def close_gripper(sim):
-    """Attach the part to the tool if within GRIP_RANGE. Returns True on success."""
     h = _handles(sim)
     part = sim.getObject(PART)
     d = np.linalg.norm(np.array(sim.getObjectPosition(part, h["tip"])))
     if d > GRIP_RANGE:
         return False
-    sim.setObjectParent(part, h["tip"], True)   # True = keep world pose
+    sim.setObjectInt32Param(part, sim.shapeintparam_static, 1)  # freeze physics while carried
+    sim.setObjectParent(part, h["tip"], True)
     return True
 
 
@@ -127,6 +142,8 @@ def open_gripper(sim):
     part = sim.getObject(PART)
     if sim.getObjectParent(part) == h["tip"]:
         sim.setObjectParent(part, -1, True)
+        sim.setObjectInt32Param(part, sim.shapeintparam_static, 0)  # let it drop into the bin
+        sim.resetDynamicObject(part)
     return True
 
 
@@ -136,6 +153,25 @@ def part_in_bin(sim, bin_name="/Bin", tol=0.12):
     b = np.array(sim.getObjectPosition(sim.getObject(bin_name), h["base"]))
     p = get_object_position(sim)
     return bool(np.linalg.norm(p[:2] - b[:2]) < tol and p[2] < 0.15)
+
+def drop_part_in_bin(sim, bin_name="/Bin", tol=0.12):
+    """Release the part and rest it on the bin floor. Returns False if it was not over the bin."""
+    part = sim.getObject(PART)
+    bin_h = sim.getObject(bin_name)
+    open_gripper(sim)
+    px, py, _ = sim.getObjectPosition(part, -1)
+    bx, by, bz = sim.getObjectPosition(bin_h, -1)
+    if np.hypot(px - bx, py - by) > tol:
+        return False                                   # missed the bin, report honestly
+    floor_top = bz + sim.getObjectFloatParam(bin_h, sim.objfloatparam_objbbox_max_z)
+    half = -sim.getObjectFloatParam(part, sim.objfloatparam_objbbox_min_z)
+    sim.setObjectPosition(part, -1, [bx, by, floor_top + half + 0.002])
+    sim.setObjectInt32Param(part, sim.shapeintparam_static, 1)
+    try:
+        sim.resetDynamicObject(part)
+    except Exception:
+        pass
+    return True
 
 
 def reset_scene_objects(sim, part_xyz=PART_START):

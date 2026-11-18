@@ -133,6 +133,7 @@ def move_to(robot, ik, T_target, duration=None, traj_method="quintic"):
     q_goal = ik(T_target, q_now)
     if q_goal is None:
         return False
+    q_goal = q_now + (q_goal - q_now + np.pi) % (2 * np.pi) - np.pi
     traj = plan_joint_trajectory(q_now, q_goal, duration, method=traj_method)
     t_axis, Q = traj.sample(DT)
     for q in Q:
@@ -211,4 +212,21 @@ if __name__ == "__main__":
         from dh_fk import forward_kinematics as fk
     except ImportError:
         fk = None
-    run_cycle(robot, ik, args.obj, args.place, fk=fk, traj_method=args.traj)
+
+    obj_xyz, place_xyz = args.obj, args.place
+    if not args.dry_run:
+        import zmq_client as z
+        z.reset_scene_objects(robot.sim)               # part back on the conveyor
+        obj_xyz = z.get_object_position(robot.sim, "/Part")
+        place_xyz = z.get_object_position(robot.sim, "/Bin")
+        place_xyz[2] = obj_xyz[2] + 0.10               # release 10 cm above the part's resting height
+        print("pick at", obj_xyz.round(3), " place at", place_xyz.round(3))
+
+    result = run_cycle(robot, ik, obj_xyz, place_xyz, fk=fk, traj_method=args.traj)
+
+    if not args.dry_run:
+        ok = z.drop_part_in_bin(robot.sim)
+        for _ in range(50):
+            robot.client.step()
+        print("part placed in bin:", ok, "| part_in_bin check:", z.part_in_bin(robot.sim))
+        robot.client.setStepping(False)
