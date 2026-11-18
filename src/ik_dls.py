@@ -186,6 +186,15 @@ def inverse_kinematics(T, q0=None, max_iter=300, pos_tol=1e-8, rot_tol=1e-8,
     return best_q
 
 
+def solve(T, q_seed=None):
+    """Convenience alias for pick_place.py: returns 6 joint angles or None on failure."""
+    try:
+        q, info = inverse_kinematics(T, q0=q_seed, return_info=True, raise_on_fail=False)
+        return q if info["converged"] else None
+    except Exception:
+        return None
+
+
 if __name__ == "__main__":
     np.set_printoptions(precision=5, suppress=True)
     q_true = np.array([0.3, -1.0, 1.2, 0.5, -0.8, 1.1])

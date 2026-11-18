@@ -115,6 +115,14 @@ def inverse_kinematics(T, q_prefer=None):
     return solutions[int(np.argmin(costs))].copy()
 
 
+def solve(T, q_seed=None):
+    """Convenience alias for pick_place.py: returns 6 joint angles or None on failure."""
+    try:
+        return inverse_kinematics(T, q_prefer=q_seed)
+    except (ValueError, RuntimeError):
+        return None
+
+
 if __name__ == "__main__":
     np.set_printoptions(precision=5, suppress=True)
     q_true = np.array([0.3, -1.0, 1.2, 0.5, -0.8, 1.1])
