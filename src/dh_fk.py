@@ -24,8 +24,11 @@ DH_TABLE = np.array([
 
 N_JOINTS = 6
 
-# Optional corrections to match CoppeliaSim's UR5 model (set after comparing with the sim).
-# joint_offsets are added to every joint angle, base_transform is applied before the arm.
+# Optional corrections to match CoppeliaSim's UR5 model.
+# NOTE: When running with CoppeliaSim, zmq_client.py already handles the simulator's
+# zero-posture and base height offsets (SIM_JOINT_OFFSETS and SIM_BASE_Z) so that all
+# calculations in Python use pure textbook D-H conventions. Keep both at zero/identity
+# here to prevent double-correcting.
 JOINT_OFFSETS = np.zeros(N_JOINTS)
 BASE_TRANSFORM = np.eye(4)
 
