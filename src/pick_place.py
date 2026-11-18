@@ -68,6 +68,10 @@ class SimRobot:
         import zmq_client
         self.mod = zmq_client
         self.client, self.sim = zmq_client.connect()
+        try:
+            self.mod.start_simulation(self.client, self.sim)
+        except Exception:
+            pass
 
     def get_q(self):
         return np.asarray(self.mod.get_joint_angles(self.sim), dtype=float)
