@@ -1,0 +1,4 @@
+Method,Standard Success Rate (%),Singularity Success Rate (%),Mean Pos Error (mm),Singularity Pos Error (mm),Mean Solve Time (ms),Mean Iterations / Pose,Mean Cycle Time (s),Max Joint Velocity (rad/s),Max Singularity Jump Norm (rad)
+analytical,100.0,100.0,0.0,0.0,0.785,1.0,7.4,4.48,4.404
+dls_fixed,86.0,80.0,0.0034,0.0237,8.545,10.7,7.44,4.933,5.765
+dls_singularity_aware,100.0,100.0,0.0032,0.0211,6.745,7.9,7.44,5.23,5.169

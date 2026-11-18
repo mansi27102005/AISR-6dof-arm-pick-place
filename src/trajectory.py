@@ -4,10 +4,14 @@ Interface (agreed team conventions):
     joint angles : NumPy array of 6 values, radians
     time         : seconds
 
-Main entry point:
+Class-based entry point (M4):
     traj = plan_joint_trajectory(q_start, q_end, duration, method="quintic")
     q, qd, qdd = traj.at(t)          # evaluate at time t
     t, Q = traj.sample(dt=0.02)      # sample the whole path, Q has shape (N, 6)
+
+Procedural entry point (M5):
+    times, q, qd, qdd = generate_trajectory(q_start, q_end, duration=2.0, dt=0.02, method="quintic")
+    times, q, qd, qdd = plan_multisegment_trajectory(waypoints, durations, dt=0.02, method="quintic")
 """
 import numpy as np
 
@@ -87,14 +91,87 @@ def plan_via_points(waypoints, durations, method="quintic"):
             for i in range(len(waypoints) - 1)]
 
 
+def cubic_step(t, t_start, t_end, q_start, q_end):
+    """Evaluate cubic polynomial trajectory at time t."""
+    T = t_end - t_start
+    if T <= 0:
+        raise ValueError("Duration must be strictly positive")
+    tau = np.clip((t - t_start) / T, 0.0, 1.0)
+    s = 3.0 * (tau ** 2) - 2.0 * (tau ** 3)
+    ds = (6.0 * tau - 6.0 * (tau ** 2)) / T
+    dds = (6.0 - 12.0 * tau) / (T ** 2)
+    q0, q1 = np.asarray(q_start, float), np.asarray(q_end, float)
+    dq = q1 - q0
+    return q0 + dq * s, dq * ds, dq * dds
+
+
+def quintic_step(t, t_start, t_end, q_start, q_end):
+    """Evaluate quintic (5th order) polynomial trajectory at time t."""
+    T = t_end - t_start
+    if T <= 0:
+        raise ValueError("Duration must be strictly positive")
+    tau = np.clip((t - t_start) / T, 0.0, 1.0)
+    s = 10.0 * (tau ** 3) - 15.0 * (tau ** 4) + 6.0 * (tau ** 5)
+    ds = (30.0 * (tau ** 2) - 60.0 * (tau ** 3) + 30.0 * (tau ** 4)) / T
+    dds = (60.0 * tau - 180.0 * (tau ** 2) + 120.0 * (tau ** 3)) / (T ** 2)
+    q0, q1 = np.asarray(q_start, float), np.asarray(q_end, float)
+    dq = q1 - q0
+    return q0 + dq * s, dq * ds, dq * dds
+
+
+def generate_trajectory(q_start, q_end, duration=2.0, dt=0.02, method="quintic"):
+    """Generate time-series arrays for a single segment motion."""
+    step_func = quintic_step if method == "quintic" else cubic_step
+    times = np.arange(0.0, duration + dt / 2.0, dt)
+    n_steps = len(times)
+    n_joints = len(q_start)
+    q_traj = np.zeros((n_steps, n_joints))
+    qd_traj = np.zeros((n_steps, n_joints))
+    qdd_traj = np.zeros((n_steps, n_joints))
+    for i, t in enumerate(times):
+        q, qd, qdd = step_func(t, 0.0, duration, q_start, q_end)
+        q_traj[i] = q
+        qd_traj[i] = qd
+        qdd_traj[i] = qdd
+    return times, q_traj, qd_traj, qdd_traj
+
+
+def plan_multisegment_trajectory(waypoints, durations, dt=0.02, method="quintic"):
+    """Generate smooth continuous trajectory connecting an ordered sequence of waypoints."""
+    if len(waypoints) < 2:
+        raise ValueError("At least 2 waypoints required")
+    if len(durations) != len(waypoints) - 1:
+        raise ValueError("Number of durations must be len(waypoints) - 1")
+    all_times = []
+    all_q = []
+    all_qd = []
+    all_qdd = []
+    current_time = 0.0
+    for idx, (q_s, q_e, dur) in enumerate(zip(waypoints[:-1], waypoints[1:], durations)):
+        t_seg, q_seg, qd_seg, qdd_seg = generate_trajectory(q_s, q_e, duration=dur, dt=dt, method=method)
+        if idx > 0:
+            t_seg = t_seg[1:]
+            q_seg = q_seg[1:]
+            qd_seg = qd_seg[1:]
+            qdd_seg = qdd_seg[1:]
+        all_times.append(t_seg + current_time)
+        all_q.append(q_seg)
+        all_qd.append(qd_seg)
+        all_qdd.append(qdd_seg)
+        current_time += dur
+    return (
+        np.concatenate(all_times),
+        np.concatenate(all_q, axis=0),
+        np.concatenate(all_qd, axis=0),
+        np.concatenate(all_qdd, axis=0),
+    )
+
+
 if __name__ == "__main__":
-    # Quick self-check with plain numbers, no simulator needed
     q0 = np.zeros(6)
     q1 = np.array([0.5, -0.8, 1.0, -0.3, 0.2, 1.2])
     for m in ("cubic", "quintic"):
         tr = plan_joint_trajectory(q0, q1, duration=2.0, method=m)
         q_a, v_a, a_a = tr.at(0.0)
         q_b, v_b, a_b = tr.at(2.0)
-        print(f"{m}: start ok={np.allclose(q_a, q0)}, end ok={np.allclose(q_b, q1)}, "
-              f"v(0)={np.abs(v_a).max():.1e}, v(T)={np.abs(v_b).max():.1e}, "
-              f"a(0)={np.abs(a_a).max():.1e}, a(T)={np.abs(a_b).max():.1e}")
+        print(f"{m}: start ok={np.allclose(q_a, q0)}, end ok={np.allclose(q_b, q1)}")
